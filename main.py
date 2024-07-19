@@ -27,19 +27,19 @@ def getSummonerData(summonerId, region, apiKey):
     return response.json()
 
 def getLockfileData():
+    data = {}
     try:
         lockfilePath = os.path.join(os.getenv('LOCALAPPDATA'), 'Riot Games', 'League of Legends', 'lockfile')
         with open(lockfilePath, 'r') as file:
             data = file.read().split(':')
-        return {
-            'port': data[2],
-            'authToken': data[3]
-        }
     except Exception as e:
         data = os.getenv('FULL_CLIENT_DETAIL').split(':')
-        return {
+    return {
+            'name': data[0],
+            'pid': data[1],
             'port': data[2],
-            'authToken': data[3]
+            'authToken': data[3],
+            'protocol': data[4]
         }
 
 def getLcuRunePages(port, authToken):
@@ -55,6 +55,25 @@ def getLcuRunePages(port, authToken):
         return runePages
     else:
         raise Exception(f"Failed to fetch rune pages - {response.status_code}")
+    
+def isLcuServerRunning(port, authToken):
+    url = f'https://127.0.0.1:{port}/lol-gameflow/v1/gameflow-phase'
+    headers = {
+        'Authorization': f'Basic {authToken}',
+        'Accept': 'application/json'
+    }
+
+    try:
+        response = requests.get(url, headers=headers, verify=False)
+        if response.ok:
+            print("LCU server is running.")
+            return True
+        else:
+            print(f"LCU server returned status code {response.status_code}.")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to connect to LCU server: {e}")
+        return False
 
 # Replace with your details
 summonerName = "rinor4ever"
@@ -70,6 +89,9 @@ print('summonerData', summonerData)
 
 # Fetch lockfile data
 lockfileData = getLockfileData()
+
+# Check if LCU server is running
+isLcuServerRunning(lockfileData['port'], lockfileData['authToken'])
 
 # Fetch rune pages
 runePages = getLcuRunePages(lockfileData['port'], lockfileData['authToken'])
