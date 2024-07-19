@@ -1,0 +1,120 @@
+#!/bin/bash
+# dos2unix activate .env
+
+defaultEnvironmentPath="env/bin/activate"
+defaultVariableEnvPath=".env"
+
+function removeLinesWithString() {
+    local file="$1"
+    local searchString="$2"
+    file=$(echo "$file" | tr -d '\n')
+    
+    local removedLines
+    lineToRemove=$(cat .env | grep "$envString")
+    
+    if [[ -n "$lineToRemove" ]]; then
+        tempFile=$(mktemp)
+        echo "$searchString" "$file" "$tempFile"
+        grep -v "$searchString" "$file" > "$tempFile" && mv "$tempFile" "$file"
+        echo "File $file, Removed line: $lineToRemove"
+    fi
+}
+
+if command -v pyenv >/dev/null 2>&1; then
+    if [ -n "$PYENV_VERSION" ]; then
+        pyenv deactivate 2>/dev/null
+        if [ $? -eq 0 ]; then
+            echo "Environment deactivated"
+        else
+            echo "Failed to deactivate the environment"
+        fi
+    else
+        echo "Environment is not activated!"
+    fi
+else
+    echo "Pyenv is not installed!"
+fi
+
+
+echo e3
+MACHINE_TYPE="linux"
+# Check if the OS is Windows
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    echo "This machine is running Windows."
+    MACHINE_TYPE="windows"
+elif [[ "$OSTYPE" == "linux-gnu" || "$OSTYPE" == "darwin23.0" ]]; then
+    echo "This machine is running Linux."
+    MACHINE_TYPE="linux"
+else
+    echo "This script may not work on this operating system."
+    MACHINE_TYPE="unknown"
+fi
+
+if [ -z "$ENVIRONMENT_PATH" ]; then
+    echo "The variable is empty. ENVIRONMENT_PATH = $(echo $ENVIRONMENT_PATH)"
+    if [[ "$MACHINE_TYPE" == "windows" ]]; then
+        echo "On Windows machine I don't know how to create environment automatically"
+    else
+        echo "Creating environment ..."
+        if [ -f "$defaultEnvironmentPath" ]; then
+            echo "File exists $defaultEnvironmentPath"
+        else
+            python -m venv env
+            source "$defaultEnvironmentPath"
+            python -m pip install --upgrade pip
+            pip install wheel setuptools
+            pip list
+            source deactivate
+        fi
+        if [ -f "$defaultVariableEnvPath" ]; then
+            echo "File exists $defaultVariableEnvPath"
+        else
+            touch "$defaultVariableEnvPath"
+        fi
+        envString="ENVIRONMENT_PATH="
+
+        removedLines=$(removeLinesWithString "$defaultVariableEnvPath" "$envString")
+        if [[ -n "$removedLines" ]]; then
+            echo "Lines containing '$envString' have been removed from $defaultVariableEnvPath:"
+            echo "$removedLines"
+        else
+            echo "No lines containing '$envString' found in $defaultVariableEnvPath."
+        fi
+
+        echo -e "ENVIRONMENT_PATH=$defaultEnvironmentPath\n$(cat "$defaultVariableEnvPath")" > "$defaultVariableEnvPath"
+        dos2unix .env
+    fi
+else
+    echo "The variable is not empty. ENVIRONMENT_PATH = $(echo $ENVIRONMENT_PATH)"
+fi
+
+if [[ "$OSTYPE" == "windows" ]]; then
+    echo "This machine is running Windows."
+    ENVIRONMENT_PATH="${ENVIRONMENT_PATH:-env-win/Scripts/activate}"
+else
+    echo "This script may not work on this operating system."
+    ENVIRONMENT_PATH="${ENVIRONMENT_PATH:-env/bin/activate}"
+fi
+
+sourceCommand='source $(echo $ENVIRONMENT_PATH)'
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+    if [ -n "$line" ]; then
+        echo "START export $line END"
+        export "$line"
+        echo "Saved enviroment variable: $line"
+    fi
+done < $defaultVariableEnvPath
+
+echo Activating environment
+echo $sourceCommand
+eval $sourceCommand
+
+if [ $? -eq 0 ]; then
+    echo Environment activated
+    export PYTHONPATH=$(pwd)
+else
+    echo Failed to activate environment
+    echo Reseting environment path ENVIRONMENT_PATH:
+    ENVIRONMENT_PATH=
+fi
