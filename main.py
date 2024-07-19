@@ -1,6 +1,21 @@
 import requests
+import urllib3
+import base64
 import json
 import os
+
+# Suppress the InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def encodeBase64(inputString):
+    # Convert the input string to bytes
+    inputBytes = inputString.encode('utf-8')
+    # Encode the bytes to base64
+    base64Bytes = base64.b64encode(inputBytes)
+    # Convert the base64 bytes back to a string
+    base64String = base64Bytes.decode('utf-8')
+    return base64String
 
 def getSummonerId(summonerName, tagLine, apiKey):
     url = f"https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{summonerName}/{tagLine}"
@@ -42,10 +57,10 @@ def getLockfileData():
             'protocol': data[4]
         }
 
-def getLcuRunePages(port, authToken):
+def getLcuRunePages(port, base64AuthToken):
     url = f'https://127.0.0.1:{port}/lol-perks/v1/pages'
     headers = {
-        'Authorization': f'Basic {authToken}',
+        'Authorization': f'Basic {base64AuthToken}',
         'Accept': 'application/json'
     }
 
@@ -56,15 +71,31 @@ def getLcuRunePages(port, authToken):
     else:
         raise Exception(f"Failed to fetch rune pages - {response.status_code}")
     
-def isLcuServerRunning(port, authToken):
+def deleteAllRunePage(port, base64AuthToken):
+    url = f'https://127.0.0.1:{port}/lol-perks/v1/pages'
+    headers = {
+        'Authorization': f'Basic {base64AuthToken}',
+        'Accept': 'application/json'
+    }
+
+    response = requests.delete(url, headers=headers, verify=False)
+    if response.ok:
+        print(f"Successfully deleted all rune pages {response.status_code}.")
+    else:
+        print(f"Failed to delete all rune page - {response.status_code}")
+    
+def isLcuServerRunning(port, base64AuthToken):
     url = f'https://127.0.0.1:{port}/lol-gameflow/v1/gameflow-phase'
     headers = {
-        'Authorization': f'Basic {authToken}',
+        'Authorization': f'Basic {base64AuthToken}',
         'Accept': 'application/json'
     }
 
     try:
         response = requests.get(url, headers=headers, verify=False)
+        print("Response status code:", response.status_code)
+        print("Response content:", response.content)
+
         if response.ok:
             print("LCU server is running.")
             return True
@@ -90,9 +121,20 @@ print('summonerData', summonerData)
 # Fetch lockfile data
 lockfileData = getLockfileData()
 
+
+stringAuth = f"riot:{lockfileData['authToken']}"
+base64AuthToken = encodeBase64(stringAuth)
+
 # Check if LCU server is running
-isLcuServerRunning(lockfileData['port'], lockfileData['authToken'])
+isLcuServerRunning(lockfileData['port'], base64AuthToken)
 
 # Fetch rune pages
-runePages = getLcuRunePages(lockfileData['port'], lockfileData['authToken'])
-print(json.dumps(runePages, indent=4))
+runePages = getLcuRunePages(lockfileData['port'], base64AuthToken)
+# print(json.dumps(runePages, indent=4))
+# print(runePages)
+print(len(runePages))
+filteredRunPages = [item["id"] for item in runePages if item["isDeletable"]]
+
+print(len(filteredRunPages), filteredRunPages)
+
+# deleteAllRunePage(lockfileData['port'], base64AuthToken)
